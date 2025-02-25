@@ -2,21 +2,35 @@ import * as THREE from 'three';
 import { state } from './main.js';
 
 export function setupLights(scene) {
+  const defaults = state.defaultSettings;
+
   // Main directional light
-  const mainLight = new THREE.DirectionalLight(0xffffff, 2.0);
-  mainLight.position.set(-4.6, 3.4, 2.9);
+  const mainLight = new THREE.DirectionalLight(defaults.mainLight.color, defaults.mainLight.intensity);
+  mainLight.position.set(
+    defaults.mainLight.x,
+    defaults.mainLight.y,
+    defaults.mainLight.z
+  );
   setupShadowCamera(mainLight);
   scene.add(mainLight);
 
   // Fill light
-  const fillLight = new THREE.DirectionalLight(0xffffff, 2.0);
-  fillLight.position.set(-0.8, 3.6, -6.8);
+  const fillLight = new THREE.DirectionalLight(defaults.fillLight.color, defaults.fillLight.intensity);
+  fillLight.position.set(
+    defaults.fillLight.x,
+    defaults.fillLight.y,
+    defaults.fillLight.z
+  );
   setupShadowCamera(fillLight);
   scene.add(fillLight);
 
   // Rim light
-  const rimLight = new THREE.DirectionalLight(0xffd5cc, 0.79);
-  rimLight.position.set(-3.2, -3.5, -3.5);
+  const rimLight = new THREE.DirectionalLight(defaults.rimLight.color, defaults.rimLight.intensity);
+  rimLight.position.set(
+    defaults.rimLight.x,
+    defaults.rimLight.y,
+    defaults.rimLight.z
+  );
   setupShadowCamera(rimLight);
   scene.add(rimLight);
 
@@ -30,6 +44,12 @@ export function setupLights(scene) {
   const mainLightHelper = new THREE.DirectionalLightHelper(mainLight, 1);
   const fillLightHelper = new THREE.DirectionalLightHelper(fillLight, 1);
   const rimLightHelper = new THREE.DirectionalLightHelper(rimLight, 1);
+
+  // Set initial visibility to false
+  mainLightHelper.visible = false;
+  fillLightHelper.visible = false;
+  rimLightHelper.visible = false;
+
   scene.add(mainLightHelper);
   scene.add(fillLightHelper);
   scene.add(rimLightHelper);

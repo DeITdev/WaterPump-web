@@ -9,7 +9,8 @@ import { updateHelperVisibility, updateHelpers, setupHelpers } from './helpers.j
 let scene, camera, renderer, controls;
 let frameCount = 0;
 let lastTime = performance.now();
-let statsElement;
+let statsContainer;
+let fps = 0;
 
 export const state = {
   scene: null,
@@ -17,43 +18,61 @@ export const state = {
   lights: {},
   helpers: {
     showAllHelpers: false,
-    showLightHelpers: true,
-    showGrid: true,
-    showAxes: true
+    showLightHelpers: false,
+    showGrid: false,
+    showAxes: false
   },
   renderSettings: {
     useHighQuality: true,
-    shadows: true
+    shadows: false
+  },
+  defaultSettings: {
+    performance: {
+      highQuality: true,
+      shadows: false
+    },
+    helperVisibility: {
+      showAllHelpers: false,
+      lightHelpers: false,
+      grid: false,
+      axes: false
+    },
+    mainLight: {
+      x: -4.6,
+      y: 3.4,
+      z: 2.9,
+      intensity: 1.8,
+      color: '#ffffff'
+    },
+    fillLight: {
+      x: -0.8,
+      y: 3.6,
+      z: -6.8,
+      intensity: 0.8,
+      color: '#b6ccff'
+    },
+    rimLight: {
+      x: -3.2,
+      y: -3.5,
+      z: -3.5,
+      intensity: 1,
+      color: '#ffd5cc'
+    },
+    camera: {
+      x: 0,
+      y: 5,
+      z: 10
+    }
   }
 };
 
-function updateFPS() {
-  frameCount++;
-  const currentTime = performance.now();
-  const elapsed = currentTime - lastTime;
-
-  if (elapsed >= 1000) {
-    const fps = Math.round((frameCount * 1000) / elapsed);
-    statsElement.textContent = `FPS: ${fps}`;
-    frameCount = 0;
-    lastTime = currentTime;
-  }
-}
-
 function init() {
-  statsElement = document.getElementById('stats');
   scene = new THREE.Scene();
   state.scene = scene;
   scene.background = new THREE.Color(0x333333);
 
-  camera = new THREE.PerspectiveCamera(
-    40,
-    window.innerWidth / window.innerHeight,
-    0.1,
-    5000
-  );
-  camera.position.set(10, 10, 10);
-
+  setupCamera();
+  setupStats();
   setupLights(scene);
   setupHelpers(scene);
   renderer = initRenderer();
@@ -65,6 +84,14 @@ function init() {
   controls = new OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true;
   controls.dampingFactor = 0.05;
+
+  // Add camera limits
+  controls.maxPolarAngle = Math.PI / 2; // Prevent going below ground
+  controls.minDistance = 2; // Prevent getting too close
+  controls.maxDistance = 20; // Prevent getting too far
+
+  // Add change event listener to enforce position limits
+  controls.addEventListener('change', enforceCameraLimits);
 
   loadModel();
   animate();
@@ -117,15 +144,78 @@ function setupModel(model) {
 
 function animate() {
   requestAnimationFrame(animate);
+
+  frameCount++;
+  const currentTime = performance.now();
+  const elapsed = currentTime - lastTime;
+
+  if (elapsed >= 1000) {
+    fps = Math.round((frameCount * 1000) / elapsed);
+    frameCount = 0;
+    lastTime = currentTime;
+  }
+
   controls.update();
+  enforceCameraLimits();
   renderer.render(scene, camera);
-  updateFPS();
+  updateStats();
 }
 
 function onWindowResize() {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
+}
+
+function setupCamera() {
+  camera = new THREE.PerspectiveCamera(
+    40,
+    window.innerWidth / window.innerHeight,
+    0.1,
+    5000
+  );
+  camera.position.set(
+    state.defaultSettings.camera.x,
+    state.defaultSettings.camera.y,
+    state.defaultSettings.camera.z
+  );
+}
+
+function setupStats() {
+  statsContainer = document.createElement('div');
+  statsContainer.style.position = 'fixed';
+  statsContainer.style.top = '10px';
+  statsContainer.style.left = '10px';
+  statsContainer.style.color = 'white';
+  statsContainer.style.fontFamily = 'monospace';
+  statsContainer.style.fontSize = '12px';
+  statsContainer.style.backgroundColor = 'rgba(0,0,0,0.5)';
+  statsContainer.style.padding = '5px';
+  document.body.appendChild(statsContainer);
+}
+
+function updateStats() {
+  const campos = camera.position;
+  statsContainer.innerHTML = `
+    FPS: ${fps}<br>
+    Camera Position:<br>
+    x: ${campos.x.toFixed(2)}<br>
+    y: ${campos.y.toFixed(2)}<br>
+    z: ${campos.z.toFixed(2)}
+  `;
+}
+
+// Add this new function to enforce camera position limits
+function enforceCameraLimits() {
+  // Clamp Y position between 1.0 and 7.0
+  camera.position.y = Math.max(1.0, Math.min(7.0, camera.position.y));
+
+  // Clamp X and Z positions to not exceed 8.0
+  camera.position.x = Math.max(-8.0, Math.min(8.0, camera.position.x));
+  camera.position.z = Math.max(-8.0, Math.min(8.0, camera.position.z));
+
+  // Update camera matrix after position changes
+  camera.updateProjectionMatrix();
 }
 
 init(); 
