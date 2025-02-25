@@ -5,8 +5,10 @@ import { setupLights } from './lights.js';
 import { setupGUI } from './gui.js';
 import { initRenderer, updateQualitySettings } from './renderer.js';
 import { updateHelperVisibility, updateHelpers, setupHelpers } from './helpers.js';
+import { FontLoader } from 'three/addons/loaders/FontLoader.js';
+import { TextGeometry } from 'three/addons/geometries/TextGeometry.js';
 
-let scene, camera, renderer, controls;
+let scene, camera, renderer, controls, textMesh;
 let frameCount = 0;
 let lastTime = performance.now();
 let statsContainer;
@@ -60,7 +62,7 @@ export const state = {
     },
     camera: {
       x: 0,
-      y: 5,
+      y: 4,
       z: 10
     }
   }
@@ -69,7 +71,7 @@ export const state = {
 function init() {
   scene = new THREE.Scene();
   state.scene = scene;
-  scene.background = new THREE.Color(0x333333);
+  scene.background = new THREE.Color(0x000000);
 
   setupCamera();
   setupStats();
@@ -92,6 +94,12 @@ function init() {
 
   // Add change event listener to enforce position limits
   controls.addEventListener('change', enforceCameraLimits);
+
+  // Create 3D text
+  createText('0.00');
+
+  // Setup MQTT client
+  setupMQTT();
 
   loadModel();
   animate();
@@ -168,17 +176,8 @@ function onWindowResize() {
 }
 
 function setupCamera() {
-  camera = new THREE.PerspectiveCamera(
-    40,
-    window.innerWidth / window.innerHeight,
-    0.1,
-    5000
-  );
-  camera.position.set(
-    state.defaultSettings.camera.x,
-    state.defaultSettings.camera.y,
-    state.defaultSettings.camera.z
-  );
+  camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+  camera.position.z = 10;
 }
 
 function setupStats() {
@@ -216,6 +215,79 @@ function enforceCameraLimits() {
 
   // Update camera matrix after position changes
   camera.updateProjectionMatrix();
+}
+
+function createText(value) {
+  const loader = new FontLoader();
+  loader.load('https://threejs.org/examples/fonts/helvetiker_regular.typeface.json', function (font) {
+    if (textMesh) {
+      scene.remove(textMesh);
+    }
+
+    const geometry = new TextGeometry(value, {
+      font: font,
+      size: 0.5,
+      height: 0.1,
+    });
+
+    const material = new THREE.MeshStandardMaterial({
+      color: 0x00ff00,
+      metalness: 0.3,
+      roughness: 0.4
+    });
+
+    textMesh = new THREE.Mesh(geometry, material);
+
+    // Center the text
+    geometry.computeBoundingBox();
+    const centerOffset = -0.5 * (geometry.boundingBox.max.x - geometry.boundingBox.min.x);
+    textMesh.position.set(6.0 + centerOffset, 4.0, 5.0);
+
+    scene.add(textMesh);
+  });
+}
+
+function setupMQTT() {
+  // Check if mqtt client is available globally
+  if (typeof mqtt === 'undefined') {
+    console.error('MQTT library not loaded properly');
+    return;
+  }
+
+  const options = {
+    username: 'admin',
+    password: 'admin',
+    clientId: 'waterpanel_' + Math.random().toString(16).substring(2, 8)
+  };
+
+  // Use the WebSocket port from your SCADA configuration
+  const client = mqtt.connect('ws://127.0.0.1:51328', options);
+
+  client.on('connect', () => {
+    console.log('Connected to MQTT broker from browser');
+    client.subscribe('/v1/device/+/rawdata');
+  });
+
+  client.on('message', (topic, message) => {
+    try {
+      const data = JSON.parse(message.toString());
+      console.log('Received MQTT data:', data);
+
+      // Based on your data structure, we need to find the currentInjector in the dataBA array
+      if (data.dataBA) {
+        const injectorData = data.dataBA.find(item => item.label === "currentInjector");
+        if (injectorData && injectorData.value !== undefined) {
+          createText(injectorData.value.toFixed(2));
+        }
+      }
+    } catch (error) {
+      console.error('Error parsing MQTT message:', error);
+    }
+  });
+
+  client.on('error', (error) => {
+    console.error('MQTT connection error:', error);
+  });
 }
 
 init(); 
