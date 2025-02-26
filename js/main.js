@@ -5,14 +5,20 @@ import { setupLights } from './lights.js';
 import { setupGUI } from './gui.js';
 import { initRenderer, updateQualitySettings } from './renderer.js';
 import { updateHelperVisibility, updateHelpers, setupHelpers } from './helpers.js';
-import { FontLoader } from 'three/addons/loaders/FontLoader.js';
-import { TextGeometry } from 'three/addons/geometries/TextGeometry.js';
+import { connectionConfig, promptForConnectionSettings } from './API/connection-config.js';
+import { setupMQTT } from './API/mqtt-client.js';
+import { setupRestApiDataFetch, cleanupRestApi } from './API/rest-api.js';
+import { createTextDisplay } from './UI/text-display.js';
+import { enforceCameraLimits } from './library/camera-utils.js';
+import { setupObjectInteraction, findTargetObjects } from './library/object-interaction.js';
 
-let scene, camera, renderer, controls, textMesh;
+let scene, camera, renderer, controls;
 let frameCount = 0;
 let lastTime = performance.now();
 let statsContainer;
 let fps = 0;
+let model;
+let raycaster, mouse;
 
 export const state = {
   scene: null,
@@ -68,7 +74,10 @@ export const state = {
   }
 };
 
-function init() {
+async function init() {
+  // First, get the connection settings from the user
+  await promptForConnectionSettings();
+
   scene = new THREE.Scene();
   state.scene = scene;
   scene.background = new THREE.Color(0x000000);
@@ -93,13 +102,24 @@ function init() {
   controls.maxDistance = 20; // Prevent getting too far
 
   // Add change event listener to enforce position limits
-  controls.addEventListener('change', enforceCameraLimits);
+  controls.addEventListener('change', () => enforceCameraLimits(camera));
 
-  // Create 3D text
-  createText('0.00');
+  // Raycaster for object interaction
+  raycaster = new THREE.Raycaster();
+  mouse = new THREE.Vector2();
 
-  // Setup MQTT client
-  setupMQTT();
+  // Setup object interaction
+  setupObjectInteraction(raycaster, mouse, camera, controls);
+
+  // Create 3D text display
+  createTextDisplay('0.00');
+
+  // Setup data connection based on user choice
+  if (connectionConfig.type === 'mqtt') {
+    setupMQTT();
+  } else {
+    setupRestApiDataFetch();
+  }
 
   loadModel();
   animate();
@@ -111,7 +131,7 @@ function loadModel() {
   loader.load(
     'WaterPumpPanel.gltf',
     (gltf) => {
-      const model = gltf.scene;
+      model = gltf.scene;
       setupModel(model);
       document.getElementById('info').style.display = 'none';
       setupGUI();
@@ -148,6 +168,9 @@ function setupModel(model) {
   camera.position.multiplyScalar(maxDim / 5);
   controls.target.copy(center);
   controls.update();
+
+  // Find target objects in the model
+  window.targetObject = findTargetObjects(model);
 }
 
 function animate() {
@@ -164,7 +187,7 @@ function animate() {
   }
 
   controls.update();
-  enforceCameraLimits();
+  enforceCameraLimits(camera);
   renderer.render(scene, camera);
   updateStats();
 }
@@ -176,8 +199,17 @@ function onWindowResize() {
 }
 
 function setupCamera() {
-  camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-  camera.position.z = 10;
+  camera = new THREE.PerspectiveCamera(
+    75,
+    window.innerWidth / window.innerHeight,
+    0.1,
+    1000
+  );
+  camera.position.set(
+    state.defaultSettings.camera.x,
+    state.defaultSettings.camera.y,
+    state.defaultSettings.camera.z
+  );
 }
 
 function setupStats() {
@@ -204,90 +236,12 @@ function updateStats() {
   `;
 }
 
-// Add this new function to enforce camera position limits
-function enforceCameraLimits() {
-  // Clamp Y position between 1.0 and 7.0
-  camera.position.y = Math.max(1.0, Math.min(7.0, camera.position.y));
-
-  // Clamp X and Z positions to not exceed 8.0
-  camera.position.x = Math.max(-8.0, Math.min(8.0, camera.position.x));
-  camera.position.z = Math.max(-8.0, Math.min(8.0, camera.position.z));
-
-  // Update camera matrix after position changes
-  camera.updateProjectionMatrix();
+// Clean up resources
+function cleanup() {
+  cleanupRestApi();
 }
 
-function createText(value) {
-  const loader = new FontLoader();
-  loader.load('https://threejs.org/examples/fonts/helvetiker_regular.typeface.json', function (font) {
-    if (textMesh) {
-      scene.remove(textMesh);
-    }
-
-    const geometry = new TextGeometry(value, {
-      font: font,
-      size: 0.5,
-      height: 0.1,
-    });
-
-    const material = new THREE.MeshStandardMaterial({
-      color: 0x00ff00,
-      metalness: 0.3,
-      roughness: 0.4
-    });
-
-    textMesh = new THREE.Mesh(geometry, material);
-
-    // Center the text
-    geometry.computeBoundingBox();
-    const centerOffset = -0.5 * (geometry.boundingBox.max.x - geometry.boundingBox.min.x);
-    textMesh.position.set(6.0 + centerOffset, 4.0, 5.0);
-
-    scene.add(textMesh);
-  });
-}
-
-function setupMQTT() {
-  // Check if mqtt client is available globally
-  if (typeof mqtt === 'undefined') {
-    console.error('MQTT library not loaded properly');
-    return;
-  }
-
-  const options = {
-    username: 'admin',
-    password: 'admin',
-    clientId: 'waterpanel_' + Math.random().toString(16).substring(2, 8)
-  };
-
-  // Use the WebSocket port from your SCADA configuration
-  const client = mqtt.connect('ws://127.0.0.1:51328', options);
-
-  client.on('connect', () => {
-    console.log('Connected to MQTT broker from browser');
-    client.subscribe('/v1/device/+/rawdata');
-  });
-
-  client.on('message', (topic, message) => {
-    try {
-      const data = JSON.parse(message.toString());
-      console.log('Received MQTT data:', data);
-
-      // Based on your data structure, we need to find the currentInjector in the dataBA array
-      if (data.dataBA) {
-        const injectorData = data.dataBA.find(item => item.label === "currentInjector");
-        if (injectorData && injectorData.value !== undefined) {
-          createText(injectorData.value.toFixed(2));
-        }
-      }
-    } catch (error) {
-      console.error('Error parsing MQTT message:', error);
-    }
-  });
-
-  client.on('error', (error) => {
-    console.error('MQTT connection error:', error);
-  });
-}
+// Window beforeunload event to clean up resources
+window.addEventListener('beforeunload', cleanup);
 
 init(); 
