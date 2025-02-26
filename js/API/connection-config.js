@@ -99,8 +99,23 @@ export function promptForConnectionSettings() {
         // Ask for IP address
         await promptForIpAddress(type);
 
+        // For MQTT, only allow local connections
+        if (type === 'mqtt') {
+          // Check if the IP is local (127.0.0.1 or localhost)
+          const isLocalIP = connectionConfig.ipAddress === '127.0.0.1' ||
+            connectionConfig.ipAddress === 'localhost';
+
+          if (!isLocalIP) {
+            window.alert('MQTT connections are only supported for local connections (127.0.0.1 or localhost).');
+            showConnectionTypeDialog(); // Go back to connection type selection
+            return;
+          }
+
+          // If we get here, local MQTT connection is allowed
+          resolve(connectionConfig);
+        }
         // If REST API was selected, test the connection
-        if (type === 'rest') {
+        else if (type === 'rest') {
           try {
             // First, try to fetch data
             const response = await fetchFromRestApi();
@@ -146,9 +161,6 @@ export function promptForConnectionSettings() {
             showConnectionTypeDialog(); // Go back to connection type selection
             return;
           }
-        } else {
-          // For MQTT, just resolve with the config
-          resolve(connectionConfig);
         }
       } catch (error) {
         // This catches the error when user clicks Cancel on IP prompt
