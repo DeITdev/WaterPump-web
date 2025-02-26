@@ -14,8 +14,9 @@ export function setupMQTT() {
     clientId: 'waterpanel_' + Math.random().toString(16).substring(2, 8)
   };
 
-  // Use the IP address from the user input
-  const client = mqtt.connect(`ws://${connectionConfig.ipAddress}:${connectionConfig.mqttPort}`, options);
+  // Use secure WebSockets when on HTTPS
+  const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
+  const client = mqtt.connect(`${protocol}${connectionConfig.ipAddress}:${connectionConfig.mqttPort}`, options);
 
   client.on('connect', () => {
     console.log(`Connected to MQTT broker at ${connectionConfig.ipAddress}`);
