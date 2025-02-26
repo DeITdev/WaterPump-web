@@ -14,131 +14,147 @@ export const connectionConfig = {
 // Function to prompt user for connection settings
 export function promptForConnectionSettings() {
   return new Promise((resolve) => {
-    // Use a custom dialog instead of confirm
-    const dialog = document.createElement('div');
-    dialog.style.position = 'fixed';
-    dialog.style.left = '0';
-    dialog.style.top = '0';
-    dialog.style.width = '100%';
-    dialog.style.height = '100%';
-    dialog.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
-    dialog.style.display = 'flex';
-    dialog.style.justifyContent = 'center';
-    dialog.style.alignItems = 'center';
-    dialog.style.zIndex = '9999';
+    showConnectionTypeDialog();
 
-    const content = document.createElement('div');
-    content.style.backgroundColor = 'white';
-    content.style.padding = '20px';
-    content.style.borderRadius = '5px';
-    content.style.width = '300px';
-    content.style.textAlign = 'center';
+    function showConnectionTypeDialog() {
+      // Use a custom dialog instead of confirm
+      const dialog = document.createElement('div');
+      dialog.style.position = 'fixed';
+      dialog.style.left = '0';
+      dialog.style.top = '0';
+      dialog.style.width = '100%';
+      dialog.style.height = '100%';
+      dialog.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
+      dialog.style.display = 'flex';
+      dialog.style.justifyContent = 'center';
+      dialog.style.alignItems = 'center';
+      dialog.style.zIndex = '9999';
 
-    const title = document.createElement('h3');
-    title.textContent = 'Choose Connection Type';
-    title.style.margin = '0 0 20px 0';
+      const content = document.createElement('div');
+      content.style.backgroundColor = 'white';
+      content.style.padding = '20px';
+      content.style.borderRadius = '5px';
+      content.style.width = '300px';
+      content.style.textAlign = 'center';
 
-    const mqttBtn = document.createElement('button');
-    mqttBtn.textContent = 'MQTT';
-    mqttBtn.style.margin = '10px';
-    mqttBtn.style.padding = '8px 16px';
-    mqttBtn.style.cursor = 'pointer';
+      const title = document.createElement('h3');
+      title.textContent = 'Choose Connection Type';
+      title.style.margin = '0 0 20px 0';
 
-    const restBtn = document.createElement('button');
-    restBtn.textContent = 'REST API';
-    restBtn.style.margin = '10px';
-    restBtn.style.padding = '8px 16px';
-    restBtn.style.cursor = 'pointer';
+      const mqttBtn = document.createElement('button');
+      mqttBtn.textContent = 'MQTT';
+      mqttBtn.style.margin = '10px';
+      mqttBtn.style.padding = '8px 16px';
+      mqttBtn.style.cursor = 'pointer';
 
-    content.appendChild(title);
-    content.appendChild(mqttBtn);
-    content.appendChild(restBtn);
-    dialog.appendChild(content);
-    document.body.appendChild(dialog);
+      const restBtn = document.createElement('button');
+      restBtn.textContent = 'REST API';
+      restBtn.style.margin = '10px';
+      restBtn.style.padding = '8px 16px';
+      restBtn.style.cursor = 'pointer';
+
+      content.appendChild(title);
+      content.appendChild(mqttBtn);
+      content.appendChild(restBtn);
+      dialog.appendChild(content);
+      document.body.appendChild(dialog);
+
+      mqttBtn.addEventListener('click', () => {
+        document.body.removeChild(dialog);
+        handleConnectionType('mqtt');
+      });
+
+      restBtn.addEventListener('click', () => {
+        document.body.removeChild(dialog);
+        handleConnectionType('rest');
+      });
+    }
 
     function promptForIpAddress(type) {
-      return new Promise((resolveIp) => {
+      return new Promise((resolveIp, rejectIp) => {
         const ipAddress = window.prompt(
           `Enter IP address for ${type.toUpperCase()} connection:`,
           connectionConfig.ipAddress
         );
 
+        // If user clicked Cancel, reject the promise
+        if (ipAddress === null) {
+          rejectIp(new Error('User cancelled IP address input'));
+          return;
+        }
+
+        // If user entered an IP address, update the config
         if (ipAddress) {
           connectionConfig.ipAddress = ipAddress;
         }
+
         resolveIp();
       });
     }
 
     async function handleConnectionType(type) {
-      document.body.removeChild(dialog);
       connectionConfig.type = type;
 
-      // Then ask for IP address
-      await promptForIpAddress(type);
+      try {
+        // Ask for IP address
+        await promptForIpAddress(type);
 
-      // If REST API was selected, test the connection
-      if (type === 'rest') {
-        try {
-          // First, try to fetch data
-          const response = await fetchFromRestApi();
+        // If REST API was selected, test the connection
+        if (type === 'rest') {
+          try {
+            // First, try to fetch data
+            const response = await fetchFromRestApi();
 
-          if (!response.ok) {
-            window.alert(`Connection failed with status: ${response.status}`);
-            await promptForConnectionSettings();
-            resolve(connectionConfig);
-            return;
-          }
-
-          // Parse the response
-          const data = await response.json();
-          console.log('REST API test response:', data);
-
-          // Check for -105 values
-          if (data && data.Tags && data.Tags.length > 0) {
-            // Check if Flow_1 has -105 value
-            const flow1Tag = data.Tags.find(tag => tag.Name === "Flow_1");
-
-            if (flow1Tag && flow1Tag.Value === -105) {
-              console.warn('Flow_1 tag has -105 value (no data)');
-              window.alert('Connected to REST API but Flow_1 has no data (error -105). Please check your configuration.');
-              await promptForConnectionSettings();
-              resolve(connectionConfig);
+            if (!response.ok) {
+              window.alert(`Connection failed with status: ${response.status}`);
+              showConnectionTypeDialog(); // Go back to connection type selection
               return;
             }
 
-            // Check if all tags have -105 value
-            const allNoData = data.Tags.every(tag => tag.Value === -105);
-            if (allNoData) {
-              console.warn('All tags have -105 value (no data)');
-              window.alert('Connected to REST API but all tags have no data (error -105). Please check your configuration.');
-              await promptForConnectionSettings();
-              resolve(connectionConfig);
+            // Parse the response
+            const data = await response.json();
+
+            // Check if the response has the expected structure
+            if (!data.Values) {
+              window.alert('Connected to REST API but received unexpected data format. Please check your configuration.');
+              showConnectionTypeDialog();
+              return;
+            }
+
+            // Check if Flow_1 has -105 value
+            const flow1Tag = data.Values.find(tag => tag.Name === "Flow_1");
+
+            if (!flow1Tag) {
+              window.alert('Connected to REST API but Flow_1 tag was not found. Please check your configuration.');
+              showConnectionTypeDialog();
+              return;
+            }
+
+            // SIMPLE CHECK: If value is -105, go back to IP input, otherwise continue
+            if (flow1Tag.Value === -105) {
+              window.alert('Flow_1 has no data (value -105). Please check your configuration or try a different IP.');
+              showConnectionTypeDialog();
               return;
             }
 
             // If we get here, connection is good
             window.alert('Successfully connected to REST API!');
-          } else {
-            window.alert('Connected to REST API but no tags were found. Please check your configuration.');
-            await promptForConnectionSettings();
             resolve(connectionConfig);
+          } catch (error) {
+            console.error('Error testing REST API connection:', error);
+            window.alert(`Error connecting to REST API: ${error.message}`);
+            showConnectionTypeDialog(); // Go back to connection type selection
             return;
           }
-        } catch (error) {
-          console.error('Error testing REST API connection:', error);
-          window.alert(`Error connecting to REST API: ${error.message}`);
-          await promptForConnectionSettings();
+        } else {
+          // For MQTT, just resolve with the config
           resolve(connectionConfig);
-          return;
         }
+      } catch (error) {
+        // This catches the error when user clicks Cancel on IP prompt
+        showConnectionTypeDialog(); // Go back to connection type selection
       }
-
-      resolve(connectionConfig);
     }
-
-    mqttBtn.addEventListener('click', () => handleConnectionType('mqtt'));
-    restBtn.addEventListener('click', () => handleConnectionType('rest'));
   });
 }
 
