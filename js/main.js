@@ -1,6 +1,6 @@
 import * as THREE from 'three';
-import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { setupLights } from './lights.js';
 import { setupGUI } from './gui.js';
 import { initRenderer, updateQualitySettings } from './renderer.js';
@@ -128,34 +128,25 @@ async function init() {
 
 function loadModel() {
   const loader = new GLTFLoader();
+  const modelPath = new URL('../WaterPumpPanel.gltf', import.meta.url).href;
   
-  // First try to fetch the GLTF file to ensure it's loaded correctly
-  fetch('./WaterPumpPanel.gltf')
-    .then(response => response.json())
-    .then(gltf => {
-      // Now that we know the GLTF is valid, load it with GLTFLoader
-      loader.load(
-        './WaterPumpPanel.gltf',
-        (gltf) => {
-          model = gltf.scene;
-          setupModel(model);
-          document.getElementById('info').style.display = 'none';
-          setupGUI();
-        },
-        (xhr) => {
-          document.getElementById('info').textContent =
-            `Loading: ${Math.round((xhr.loaded / xhr.total) * 100)}%`;
-        },
-        (error) => {
-          console.error('Error loading model:', error);
-          document.getElementById('info').textContent = 'Error loading model. Please check console for details.';
-        }
-      );
-    })
-    .catch(error => {
-      console.error('Error fetching GLTF file:', error);
-      document.getElementById('info').textContent = 'Error loading model file. Please check console for details.';
-    });
+  loader.load(
+    modelPath,
+    (gltf) => {
+      model = gltf.scene;
+      setupModel(model);
+      document.getElementById('info').style.display = 'none';
+      setupGUI();
+    },
+    (xhr) => {
+      document.getElementById('info').textContent =
+        `Loading: ${Math.round((xhr.loaded / xhr.total) * 100)}%`;
+    },
+    (error) => {
+      console.error('Error loading model:', error);
+      document.getElementById('info').textContent = 'Error loading model. Please check console for details.';
+    }
+  );
 }
 
 function setupModel(model) {
