@@ -83,8 +83,6 @@ build/
 *.rar
 *.tar
 *.zip
-*.bin
-.gltf
 
 # Optional: Uncomment the patterns you need
 # Dependency directories
@@ -98,11 +96,6 @@ build/
 # Local development configuration
 # config.local.js
 # .env.local
-
-# 3D Model files
-# *.gltf
-# *.bin
-# *.glb
 
 # Optional: Common additional files you might want to ignore
 node_modules/
