@@ -128,23 +128,34 @@ async function init() {
 
 function loadModel() {
   const loader = new GLTFLoader();
-  loader.load(
-    './WaterPumpPanel.gltf',
-    (gltf) => {
-      model = gltf.scene;
-      setupModel(model);
-      document.getElementById('info').style.display = 'none';
-      setupGUI();
-    },
-    (xhr) => {
-      document.getElementById('info').textContent =
-        `Loading: ${Math.round((xhr.loaded / xhr.total) * 100)}%`;
-    },
-    (error) => {
-      document.getElementById('info').textContent = 'Error loading model';
-      console.error('Error loading model:', error);
-    }
-  );
+  
+  // First try to fetch the GLTF file to ensure it's loaded correctly
+  fetch('./WaterPumpPanel.gltf')
+    .then(response => response.json())
+    .then(gltf => {
+      // Now that we know the GLTF is valid, load it with GLTFLoader
+      loader.load(
+        './WaterPumpPanel.gltf',
+        (gltf) => {
+          model = gltf.scene;
+          setupModel(model);
+          document.getElementById('info').style.display = 'none';
+          setupGUI();
+        },
+        (xhr) => {
+          document.getElementById('info').textContent =
+            `Loading: ${Math.round((xhr.loaded / xhr.total) * 100)}%`;
+        },
+        (error) => {
+          console.error('Error loading model:', error);
+          document.getElementById('info').textContent = 'Error loading model. Please check console for details.';
+        }
+      );
+    })
+    .catch(error => {
+      console.error('Error fetching GLTF file:', error);
+      document.getElementById('info').textContent = 'Error loading model file. Please check console for details.';
+    });
 }
 
 function setupModel(model) {
