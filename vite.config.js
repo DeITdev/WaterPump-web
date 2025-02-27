@@ -12,8 +12,11 @@ export default {
     rollupOptions: {
       output: {
         assetFileNames: (assetInfo) => {
-          // Keep GLTF and BIN files in the root directory
-          if (assetInfo.name.endsWith('.gltf') || assetInfo.name.endsWith('.bin')) {
+          // Keep model and texture files in their original paths
+          if (assetInfo.name.match(/\.(gltf|bin)$/)) {
+            return '[name][extname]';
+          }
+          if (assetInfo.name.match(/texture\/.+\.(jpg|png)$/)) {
             return '[name][extname]';
           }
           // Put other assets in the assets directory
@@ -23,7 +26,7 @@ export default {
     }
   },
   // Treat these files as assets
-  assetsInclude: ['**/*.gltf', '**/*.bin'],
+  assetsInclude: ['**/*.gltf', '**/*.bin', '**/texture/*.jpg', '**/texture/*.png'],
   // Preserve these file names
   publicDir: 'public'
 }

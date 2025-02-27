@@ -128,15 +128,53 @@ async function init() {
 
 function loadModel() {
   const loader = new GLTFLoader();
-  const modelPath = '/WaterPumpPanel.gltf';  // Load from root path
+  const modelPath = '/WaterPumpPanel.gltf';
+
+  // Create a texture loader with the correct base path
+  const textureLoader = new THREE.TextureLoader();
+  textureLoader.setPath('/');
+
+  // Override texture loading in GLTFLoader
+  loader.setKTX2Loader(null);
+  loader.setMeshoptDecoder(null);
   
   // Set up texture path resolver
-  loader.setResourcePath('/');  // This tells the loader to look for textures from the root path
+  loader.setPath('/');
+  
+  // Override the default texture loading
+  const originalLoadTexture = loader.textureLoader.load;
+  loader.textureLoader.load = function(url, onLoad, onProgress, onError) {
+    // Ensure the URL starts with the correct path
+    const correctedUrl = url.startsWith('/') ? url : '/' + url;
+    console.log('Loading texture:', correctedUrl);
+    return originalLoadTexture.call(this, correctedUrl, onLoad, onProgress, onError);
+  };
   
   loader.load(
     modelPath,
     (gltf) => {
       model = gltf.scene;
+      
+      // Fix material paths after loading
+      model.traverse((child) => {
+        if (child.isMesh) {
+          if (child.material) {
+            const materials = Array.isArray(child.material) ? child.material : [child.material];
+            materials.forEach(material => {
+              // Fix texture paths for all texture types
+              Object.keys(material).forEach(key => {
+                if (material[key] && material[key].isTexture) {
+                  const oldPath = material[key].image.src;
+                  if (oldPath && !oldPath.startsWith('http')) {
+                    material[key].image.src = window.location.origin + '/' + oldPath;
+                  }
+                }
+              });
+            });
+          }
+        }
+      });
+      
       setupModel(model);
       document.getElementById('info').style.display = 'none';
       setupGUI();
