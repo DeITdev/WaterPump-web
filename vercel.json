@@ -26,8 +26,16 @@
       }
     },
     {
-      "src": "/texture/(.*)",
+      "src": "/texture/.*\\.jpg$",
       "headers": {
+        "content-type": "image/jpeg",
+        "cache-control": "public, max-age=31536000, immutable"
+      }
+    },
+    {
+      "src": "/texture/.*\\.png$",
+      "headers": {
+        "content-type": "image/png",
         "cache-control": "public, max-age=31536000, immutable"
       }
     },

@@ -130,6 +130,9 @@ function loadModel() {
   const loader = new GLTFLoader();
   const modelPath = '/WaterPumpPanel.gltf';  // Load from root path
   
+  // Set up texture path resolver
+  loader.setResourcePath('/');  // This tells the loader to look for textures from the root path
+  
   loader.load(
     modelPath,
     (gltf) => {
