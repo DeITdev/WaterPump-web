@@ -100,9 +100,9 @@ build/
 # .env.local
 
 # 3D Model files
-*.gltf
-*.bin
-*.glb
+# *.gltf
+# *.bin
+# *.glb
 
 # Optional: Common additional files you might want to ignore
 node_modules/
