@@ -1,15 +1,24 @@
 // Configuration for data connection
 export const connectionConfig = {
   type: 'mqtt', // 'mqtt' or 'rest'
-  ipAddress: '127.0.0.1',
-  mqttPort: 51328,
-  mqttUsername: 'admin',
-  mqttPassword: 'admin',
+  ipAddress: localStorage.getItem('mqttIpAddress') || '127.0.0.1',
+  mqttPort: parseInt(localStorage.getItem('mqttPort')) || 51328,
+  mqttUsername: localStorage.getItem('mqttUsername') || 'admin',
+  mqttPassword: localStorage.getItem('mqttPassword') || 'admin',
   restApiEndpoint: '/WaWebService/Json/GetTagValue/express',
   restApiUsername: 'admin',
   restApiPassword: '',
   updateInterval: 5000, // 5 seconds for REST API polling
 };
+
+// Function to save connection settings to localStorage
+export function saveConnectionSettings(settings) {
+  localStorage.setItem('mqttIpAddress', settings.ipAddress);
+  localStorage.setItem('mqttPort', settings.mqttPort);
+  localStorage.setItem('mqttUsername', settings.mqttUsername);
+  localStorage.setItem('mqttPassword', settings.mqttPassword);
+  Object.assign(connectionConfig, settings);
+}
 
 // Function to prompt user for connection settings
 export function promptForConnectionSettings() {
@@ -112,6 +121,7 @@ export function promptForConnectionSettings() {
           }
 
           // If we get here, local MQTT connection is allowed
+          saveConnectionSettings(connectionConfig);
           resolve(connectionConfig);
         }
         // If REST API was selected, test the connection
@@ -154,6 +164,7 @@ export function promptForConnectionSettings() {
 
             // If we get here, connection is good
             window.alert('Successfully connected to REST API!');
+            saveConnectionSettings(connectionConfig);
             resolve(connectionConfig);
           } catch (error) {
             console.error('Error testing REST API connection:', error);
@@ -245,4 +256,4 @@ export async function fetchFromRestApi() {
     },
     body: JSON.stringify(requestBody)
   });
-} 
+}

@@ -129,7 +129,7 @@ async function init() {
 function loadModel() {
   const loader = new GLTFLoader();
   loader.load(
-    'WaterPumpPanel.gltf',
+    './WaterPumpPanel.gltf',
     (gltf) => {
       model = gltf.scene;
       setupModel(model);

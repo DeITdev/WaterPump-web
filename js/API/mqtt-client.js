@@ -1,26 +1,39 @@
 import { connectionConfig } from './connection-config.js';
 import { updateTextDisplay } from '../UI/text-display.js';
 
+let client = null;
+
 export function setupMQTT() {
-  // Check if mqtt client is available globally
-  if (typeof mqtt === 'undefined') {
-    console.error('MQTT library not loaded properly');
-    return;
+  const { ipAddress, mqttPort, mqttUsername, mqttPassword } = connectionConfig;
+  const wsUrl = `ws://${ipAddress}:${mqttPort}`;
+  
+  // Disconnect existing client if any
+  if (client && client.connected) {
+    client.end();
   }
 
-  const options = {
-    username: connectionConfig.mqttUsername,
-    password: connectionConfig.mqttPassword,
-    clientId: 'waterpanel_' + Math.random().toString(16).substring(2, 8)
-  };
-
-  // Use secure WebSockets when on HTTPS
-  const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
-  const client = mqtt.connect(`${protocol}${connectionConfig.ipAddress}:${connectionConfig.mqttPort}`, options);
+  // Create new client
+  client = mqtt.connect(wsUrl, {
+    username: mqttUsername,
+    password: mqttPassword,
+    reconnectPeriod: 5000, // Try to reconnect every 5 seconds
+    connectTimeout: 30000, // 30 seconds timeout
+  });
 
   client.on('connect', () => {
-    console.log(`Connected to MQTT broker at ${connectionConfig.ipAddress}`);
+    console.log('Connected to MQTT broker');
+    // Subscribe to topics here
     client.subscribe('/v1/device/+/rawdata');
+  });
+
+  client.on('error', (error) => {
+    console.error('MQTT Error:', error);
+    // Show error in UI
+    const errorDiv = document.getElementById('connection-error');
+    if (errorDiv) {
+      errorDiv.textContent = `MQTT Error: ${error.message}. Check your connection settings.`;
+      errorDiv.style.display = 'block';
+    }
   });
 
   client.on('message', (topic, message) => {
@@ -40,7 +53,16 @@ export function setupMQTT() {
     }
   });
 
-  client.on('error', (error) => {
-    console.error('MQTT connection error:', error);
-  });
-} 
+  return client;
+}
+
+export function getMQTTClient() {
+  return client;
+}
+
+export function cleanupMQTT() {
+  if (client) {
+    client.end();
+    client = null;
+  }
+}
