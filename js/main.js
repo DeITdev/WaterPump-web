@@ -128,7 +128,7 @@ async function init() {
 
 function loadModel() {
   const loader = new GLTFLoader();
-  const modelPath = new URL('../WaterPumpPanel.gltf', import.meta.url).href;
+  const modelPath = '/WaterPumpPanel.gltf';  // Load from root path
   
   loader.load(
     modelPath,
